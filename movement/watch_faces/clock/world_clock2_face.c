@@ -132,7 +132,21 @@ void world_clock2_face_setup(movement_settings_t *settings, uint8_t watch_face_i
 
         /* Start in settings mode */
         world_clock2_state_t *state = (world_clock2_state_t *) * context_ptr;
-        state->current_mode = WORLD_CLOCK2_MODE_SETTINGS;
+        // state->current_zone = INITIAL_WORLD_ZONE;
+        
+        uint8_t predefined_zones[] = { 
+            5,  // "GET", 4:00:00 (Georgia Standard Time)
+            12, // "THA", 7:00:00 (Thailand Standard Time)
+            31, // "MST", -7:00:00 (Mountain Standard Time)
+            32, // "CST", -6:00:00 (Central Standard Time)
+        };
+        state->current_zone = predefined_zones[0];
+        uint8_t length = sizeof(predefined_zones) / sizeof(predefined_zones[0]);
+        for (uint8_t i = 0; i < length; i++) {
+            uint8_t index = predefined_zones[i];
+            state->zones[index].selected = true;
+        }
+        state->current_mode = WORLD_CLOCK2_MODE_DISPLAY;
     }
 }
 

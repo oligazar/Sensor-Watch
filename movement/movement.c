@@ -56,6 +56,7 @@
 #endif
 
 #include "movement_custom_signal_tunes.h"
+#include "custom_config.h"
 
 // Default to no secondary face behaviour.
 #ifndef MOVEMENT_SECONDARY_FACE_INDEX

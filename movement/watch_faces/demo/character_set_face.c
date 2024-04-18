@@ -40,21 +40,36 @@ void character_set_face_activate(movement_settings_t *settings, void *context) {
     movement_request_tick_frequency(0);
 }
 
+void _display(char * c) {
+    char buf[11];
+    sprintf(buf, "%c%c%c%c%c%c%c%c%c%c", *c, *c, *c, *c, *c, *c, *c, *c, *c, *c);
+    printf("%p\n", *c);
+    printf("%c\n", *c);
+    watch_display_string(buf, 0);
+}
+
 bool character_set_face_loop(movement_event_t event, movement_settings_t *settings, void *context) {
     (void) settings;
     char *c = (char *)context;
-    char buf[11];
     switch (event.event_type) {
         case EVENT_ALARM_BUTTON_UP:
             *c = (*c) + 1;
             if (*c & 0x80) *c = ' ';
-            // fall through
+            _display(c);
+            break;
         case EVENT_ACTIVATE:
-            sprintf(buf, "%c%c%c%c%c%c%c%c%c%c", *c, *c, *c, *c, *c, *c, *c, *c, *c, *c);
-            watch_display_string(buf, 0);
+            _display(c);
             break;
         case EVENT_TIMEOUT:
             movement_move_to_face(0);
+            break;
+        case EVENT_LIGHT_BUTTON_DOWN:
+            if (*c == 0x20) *c = 0x7f;
+            *c = (*c) - 1;
+            _display(c);
+            break;
+        case EVENT_LIGHT_LONG_PRESS:
+            movement_illuminate_led();
             break;
         default:
             movement_default_loop_handler(event, settings);
