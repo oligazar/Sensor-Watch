@@ -54,16 +54,21 @@ void metronome_face_activate(movement_settings_t *settings, void *context) {
 
 static void _metronome_face_update_lcd(metronome_state_t *state) {
     char buf[11];
-    state->soundOn ? watch_set_indicator(WATCH_INDICATOR_BELL) : watch_clear_indicator(WATCH_INDICATOR_BELL);
+    // state->soundOn ? watch_set_indicator(WATCH_INDICATOR_BELL) : watch_clear_indicator(WATCH_INDICATOR_BELL);
     sprintf(buf, "MN %d %03d%s", state->count, state->bpm, "bp");
     watch_display_string(buf, 0);
+}
+
+static void _clear_indicators() {
+    watch_clear_indicator(WATCH_INDICATOR_SIGNAL);
+    watch_clear_indicator(WATCH_INDICATOR_BELL);
 }
 
 static void _metronome_start_stop(metronome_state_t *state) {
     if (state->mode != metRun) {
         movement_request_tick_frequency(64);
         state->mode = metRun;
-        watch_clear_display();
+        // watch_clear_display();
         double ticks = 3840.0 / (double)state->bpm;
         state->tick = (int) ticks;
         state->curTick = (int) ticks;
@@ -74,21 +79,24 @@ static void _metronome_start_stop(metronome_state_t *state) {
     } else {
         state->mode = metWait;
         movement_request_tick_frequency(2);
+        _clear_indicators();
         _metronome_face_update_lcd(state);
     }
 }
 
 static void _metronome_tick_beat(metronome_state_t *state) {
-    char buf[11];
+    // char buf[11];
     if (state->soundOn) {
         if (state->curBeat == 1) {
             watch_buzzer_play_sequence((int8_t *)_sound_seq_start, NULL);
+            watch_set_indicator(WATCH_INDICATOR_BELL);
         } else {
             watch_buzzer_play_sequence((int8_t *)_sound_seq_beat, NULL);
+            watch_set_indicator(WATCH_INDICATOR_SIGNAL);
         }
     }
-    sprintf(buf, "MN %d %03d%s", state->count, state->bpm, "bp");    
-    watch_display_string(buf, 0);
+    // sprintf(buf, "MN %d %03d%s", state->count, state->bpm, "bp");    
+    // watch_display_string(buf, 0);
 }
 
 static void _metronome_event_tick(uint8_t subsecond, metronome_state_t *state) {
@@ -108,7 +116,8 @@ static void _metronome_event_tick(uint8_t subsecond, metronome_state_t *state) {
         }
     } else {
         if (state->curTick == state->halfBeat)  {
-            watch_clear_display();
+            // watch_clear_display();
+            _clear_indicators();
         }
         state->curTick += 1;
     }
@@ -199,16 +208,22 @@ bool metronome_face_loop(movement_event_t event, movement_settings_t *settings, 
             break;
         case EVENT_ALARM_BUTTON_UP:
             if (state->mode == setMenu) {
+                _metronome_update_setting(state);
+            } else {
+                _metronome_start_stop(state);
+            }
+            break;            
+        case EVENT_LIGHT_BUTTON_UP:
+            movement_illuminate_led();
+            if (state->mode == setMenu) {
                 if (state->setCur < alarm) {
                     state->setCur += 1;
                 } else {
                     state->setCur = hundred;
                 }
-            } else {
-                _metronome_start_stop(state);
-            }
+            } 
             break;
-        case EVENT_ALARM_LONG_PRESS:
+        case EVENT_LIGHT_LONG_PRESS:
             if (state->mode != metRun && state->mode != setMenu) {
                 movement_request_tick_frequency(2);
                 state->mode = setMenu;
@@ -218,12 +233,6 @@ bool metronome_face_loop(movement_event_t event, movement_settings_t *settings, 
                 _metronome_face_update_lcd(state);
             }
             break;
-        case EVENT_MODE_BUTTON_UP:
-            if (state->mode == setMenu) {
-                _metronome_update_setting(state);
-            } else {
-                movement_move_to_next_face();
-            }
         case EVENT_TIMEOUT:
             if (state->mode != metRun) {
                 movement_move_to_face(0);
