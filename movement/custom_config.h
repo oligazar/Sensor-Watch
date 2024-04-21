@@ -11,7 +11,7 @@
         loc.bit.longitude = 2401;                  \
         watch_store_backup_data(loc.reg, 1);       \
     } while (0);
-#endif MOVEMENT_CUSTOM_BOOT_COMMANDS
+#endif
 
 // #ifdef WORLD_CLOCK2_FACE_H_
 

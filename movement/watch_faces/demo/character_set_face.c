@@ -40,7 +40,7 @@ void character_set_face_activate(movement_settings_t *settings, void *context) {
     movement_request_tick_frequency(0);
 }
 
-void _display(char * c) {
+static void _display(char * c) {
     char buf[11];
     sprintf(buf, "%c%c%c%c%c%c%c%c%c%c", *c, *c, *c, *c, *c, *c, *c, *c, *c, *c);
     printf("%p\n", *c);

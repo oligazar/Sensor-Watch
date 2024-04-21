@@ -29,20 +29,19 @@
 
 const watch_face_t watch_faces[] = {
     simple_clock_face,
-    totp_face_lfs,
     tomato_face,
     timer_face,
     stock_stopwatch_face,
     interval_face,
     metronome_face,
-    tuning_tones_face,
+    // tuning_tones_face,
 
     world_clock2_face,
     alarm_face,
     sunrise_sunset_face,
+    totp_face_lfs,
     set_time_hackwatch_face,
     preferences_face,
-    totp_face,
    
     character_set_face,
     chirpy_demo_face
