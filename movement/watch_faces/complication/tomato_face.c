@@ -27,29 +27,34 @@
 #include "tomato_face.h"
 #include "watch_utility.h"
 
-static uint8_t focus_min = 25;
-static uint8_t break_min = 5;
+static uint8_t focus_min = 1; // 25;
+static uint8_t break_min = 1; // 5;
+static uint8_t long_break_min = 1; // 20;
+static uint8_t rounds = 2; // 4;
 
 static inline int32_t get_tz_offset(movement_settings_t *settings) {
     return movement_timezone_offsets[settings->bit.time_zone] * 60;
 }
 
 static uint8_t get_length(tomato_state_t *state) {
-    uint8_t length;
-    if (state->kind == tomato_focus) {
-        length = focus_min;
-    } else {
-        length = break_min;
+    switch (state->phase) {
+        case tomato_break:
+            return break_min;
+        case tomato_long_break:
+            return long_break_min;
+        default:
+            return focus_min;
     }
-
-    return length;
 }
 
-static void tomato_start(tomato_state_t *state, movement_settings_t *settings) {
+static void _tomato_start(tomato_state_t *state, movement_settings_t *settings) {
     watch_date_time now = watch_rtc_get_date_time();
     int8_t length = (int8_t) get_length(state);
 
-    state->mode = tomato_run;
+    if (state->phase == tomato_focus) {
+        state->count++;
+    }
+    state->is_started = true;
     state->now_ts = watch_utility_date_time_to_unix_time(now, get_tz_offset(settings));
     state->target_ts = watch_utility_offset_timestamp(state->now_ts, 0, length, 0);
     watch_date_time target_dt = watch_utility_date_time_from_unix_time(state->target_ts, get_tz_offset(settings));
@@ -57,97 +62,133 @@ static void tomato_start(tomato_state_t *state, movement_settings_t *settings) {
     watch_set_indicator(WATCH_INDICATOR_BELL);
 }
 
-static void _pause(tomato_state_t *state, movement_settings_t *settings) {
-    state->prev_mode = state->mode;
-    state->mode = tomato_pause;
+static void _tomato_pause(tomato_state_t *state) {
+    state->is_paused = true;
     state->remainder = state->target_ts - state->now_ts;
-    printf("pause, remainder: %d\n", state->remainder);
+    // printf("pause, remainder: %d\n", state->remainder);
     movement_cancel_background_task();
-    watch_clear_indicator(WATCH_INDICATOR_BELL);
+    // watch_clear_indicator(WATCH_INDICATOR_BELL);
 }
 
-static void _unpause(tomato_state_t *state, movement_settings_t *settings) {
-    printf("unpause, remainder: %d\n", state->remainder);
+static void _tomato_resume(tomato_state_t *state, movement_settings_t *settings) {
+    // printf("unpause, remainder: %d\n", state->remainder);
     watch_date_time now = watch_rtc_get_date_time();
-    state->mode = state->prev_mode;
+    state->is_paused = false;
     state->now_ts = watch_utility_date_time_to_unix_time(now, get_tz_offset(settings));
     div_t result = div(state->remainder, 60);
     state->target_ts = watch_utility_offset_timestamp(state->now_ts, 0, result.quot, result.rem);
-    printf("target_ts: %d\n", state->target_ts);
-    printf("now_ts: %d\n", state->now_ts);
+    // printf("target_ts: %d\n", state->target_ts);
+    // printf("now_ts: %d\n", state->now_ts);
     watch_date_time target_dt = watch_utility_date_time_from_unix_time(state->target_ts, get_tz_offset(settings));
     movement_schedule_background_task(target_dt);
-    watch_set_indicator(WATCH_INDICATOR_BELL);
+    // watch_set_indicator(WATCH_INDICATOR_BELL);
 }
 
-static void tomato_draw(tomato_state_t *state) {
+static int _rounds(int num) {
+    if (num == 0) return 0;
+    int result = num % rounds;
+    return result > 0 ? result : rounds;
+}
+
+static void _tomato_draw(tomato_state_t *state) {
     char buf[16];
 
     uint32_t delta;
     div_t result;
     uint8_t min = 0;
     uint8_t sec = 0;
-    char kind;
 
-    if (state->kind == tomato_break) {
-        kind = 'b';
-    } else {
-        kind = 'f';
-    }
+    // char phase;
+    // if (state->phase == tomato_break) {
+    //     phase = 'b';
+    // } else {
+    //     phase = 'f';
+    // }
 
-    switch (state->mode) {
-        case tomato_run:
+    if (state->is_started) {
+        if (state->is_paused) {
+            result = div(state->remainder, 60);
+            min = result.quot;
+            sec = result.rem;
+            // printf("remainder: %d\n", state->remainder);
+            // printf("min: %d\n", min);
+            // printf("sec: %d\n", sec);
+        } else {
             delta = state->target_ts - state->now_ts;
             result = div(delta, 60);
             min = result.quot;
             sec = result.rem;
-            printf("target_ts: %d\n", state->target_ts);
-            printf("now_ts: %d\n", state->now_ts);
-            printf("delta: %d\n", delta);
-            printf("min: %d\n", min);
-            printf("sec: %d\n", sec);
-            break;
-        case tomato_ready:
-            min = get_length(state);
-            sec = 0;
-            break;
-        case tomato_pause:
-            result = div(state->remainder, 60);
-            min = result.quot;
-            sec = result.rem;
-            printf("remainder: %d\n", state->remainder);
-            printf("min: %d\n", min);
-            printf("sec: %d\n", sec);
-            break;
+            // printf("target_ts: %d\n", state->target_ts);
+            // printf("now_ts: %d\n", state->now_ts);
+            // printf("delta: %d\n", delta);
+            // printf("min: %d\n", min);
+            // printf("sec: %d\n", sec);
+        }
+    } else {
+        min = get_length(state);
+        sec = 0;
     }
 
     char title[3];
-    if (state->mode == tomato_pause) {
+    // printf("now_ts: %d\n", state->now_ts);
+    uint8_t rest = state->now_ts%2;
+    // printf("rest: %d\n", rest);
+    if (state->is_paused && rest == 1) {
         strcpy(title, "PA");
     } else {
-        strcpy(title, "T0");
+        switch(state->phase) {
+            case tomato_focus:
+                strcpy(title, "FO");
+                break;
+            case tomato_break:
+                strcpy(title, "BR");
+                break;
+            case tomato_long_break:
+                strcpy(title, "LB");
+                break;
+        }
     }
     
-    if (state->visible) {
-        sprintf(buf, "%2s %c%2d%02d%2d", title, kind, min, sec, state->done_count);
+    if (state->is_visible) {
+        sprintf(buf, "%2s%2d%2d%02d%2d", title, state->count, min, sec, _rounds(state->count));
+        // printf("%s\n", buf);
         watch_display_string(buf, 0);
     }
 }
 
-static void tomato_reset(tomato_state_t *state) {
-    state->mode = tomato_ready;
+static void _tomato_reset_state(tomato_state_t *state) {
+    state->is_started = false;
+    state->is_paused = false;
     movement_cancel_background_task();
     watch_clear_indicator(WATCH_INDICATOR_BELL);
 }
 
-static void tomato_ring(tomato_state_t *state) {
+static void tomato_ring(tomato_state_t *state, movement_settings_t *settings) {
     movement_play_signal();
-    tomato_reset(state);
-    if (state->kind == tomato_focus) {
-        state->kind = tomato_break;
-        state->done_count++;
+    
+    if (state->phase == tomato_focus) {
+        if (_rounds(state->count) == rounds) {
+            state->phase = tomato_long_break;
+        } else {
+            state->phase = tomato_break;
+        }
     } else {
-        state->kind = tomato_focus;
+        state->phase = tomato_focus;
+    }
+
+    _tomato_reset_state(state);
+
+    if (state->is_autorun) {
+         _tomato_start(state, settings);
+    } 
+}
+
+static void _set_autorun(tomato_state_t *state, bool autorun) {
+    state->is_autorun = autorun;
+    if (autorun) {
+        watch_set_indicator(WATCH_INDICATOR_LAP);
+    } else {
+        watch_clear_indicator(WATCH_INDICATOR_LAP);
     }
 }
 
@@ -159,22 +200,24 @@ void tomato_face_setup(movement_settings_t *settings, uint8_t watch_face_index, 
         *context_ptr = malloc(sizeof(tomato_state_t));
         tomato_state_t *state = (tomato_state_t*)*context_ptr;
         memset(*context_ptr, 0, sizeof(tomato_state_t));
-        state->mode=tomato_ready;
-        state->kind= tomato_focus;
-        state->done_count = 0;
-        state->visible = true;
+        state->is_started = false;
+        state->is_paused = false;
+        state->phase= tomato_focus;
+        state->count = 0;
+        state->is_visible = true;
+        state->is_autorun = false;
     }
 }
 
 void tomato_face_activate(movement_settings_t *settings, void *context) {
     tomato_state_t *state = (tomato_state_t *)context;
-    if (state->mode == tomato_run) {
+    if (state->is_started) {
         watch_date_time now = watch_rtc_get_date_time();
         state->now_ts = watch_utility_date_time_to_unix_time(now, get_tz_offset(settings));
         watch_set_indicator(WATCH_INDICATOR_BELL);
     }
     watch_set_colon();
-    state->visible = true;
+    state->is_visible = true;
 }
 
 bool tomato_face_loop(movement_event_t event, movement_settings_t *settings, void *context) {
@@ -182,48 +225,68 @@ bool tomato_face_loop(movement_event_t event, movement_settings_t *settings, voi
 
     switch (event.event_type) {
         case EVENT_ACTIVATE:
-            tomato_draw(state);
+            _tomato_draw(state);
             break;
         case EVENT_TICK:
-            printf("printf");
-            if (state->mode == tomato_run) {
-                state->now_ts++;
-            }
-            tomato_draw(state);
+            state->now_ts++;
+            _tomato_draw(state);
             break;
         case EVENT_LIGHT_BUTTON_DOWN:
             movement_illuminate_led();
-            if (state->mode == tomato_ready) {
-                if (state->kind == tomato_break) {
-                    state->kind = tomato_focus;
-                } else {
-                    state->kind = tomato_break;
+            if (!state->is_started) {
+                switch(state->phase) {
+                    case tomato_focus:
+                        state->phase = tomato_break;
+                        break;
+                    case tomato_break:
+                        state->phase = tomato_long_break;
+                        break;
+                    case tomato_long_break:
+                        state->phase = tomato_focus;
+                        break;
                 }
             }
-            tomato_draw(state);
+            _tomato_draw(state);
+            break;
+        case EVENT_LIGHT_LONG_PRESS:
+            if (!state->is_started) {
+                state->count = 0;
+            }
             break;
         case EVENT_ALARM_BUTTON_UP:
-            switch(state->mode) {
-                case tomato_run:
-                    // tomato_reset(state);
-                    _pause(state, settings);
-                    break;
-                case tomato_ready:
-                    tomato_start(state, settings);
-                    break;
-                case tomato_pause:
-                    _unpause(state, settings);
-                    break;
+            if (state->is_started) {
+                if (state->is_paused) {
+                    _tomato_resume(state, settings);
+                } else {
+                    _tomato_pause(state);
+                }
+            } else {
+                // TODO: cycle through presets
             }
-            tomato_draw(state);
-
+            _tomato_draw(state);
             break;
         case EVENT_ALARM_LONG_PRESS:
-            state->done_count = 0;
+            if (state->is_started) {
+                if (state->is_paused) {
+                    if (state->phase == tomato_focus) {
+                        state->count--;
+                    }
+                    _tomato_reset_state(state);
+                } else {
+                    if (state->is_autorun) {
+                        _set_autorun(state, false);
+                    } else {
+                        _set_autorun(state, true);
+                    }
+                } 
+            } else {
+                _tomato_start(state, settings);
+            }
+            _tomato_draw(state);
             break;
         case EVENT_BACKGROUND_TASK:
-            tomato_ring(state);
-            tomato_draw(state);
+            tomato_ring(state, settings);
+            _tomato_draw(state);
             break;
         case EVENT_TIMEOUT:
             movement_move_to_face(0);
@@ -238,7 +301,7 @@ bool tomato_face_loop(movement_event_t event, movement_settings_t *settings, voi
 
 void tomato_face_resign(movement_settings_t *settings, void *context) {
     tomato_state_t *state = (tomato_state_t *)context;
-    state->visible = false;
+    state->is_visible = false;
     (void) settings;
     (void) context;
 }

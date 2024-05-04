@@ -13,7 +13,7 @@
  * The above copyright notice and this permission notice shall be included in all
  * copies or substantial portions of the Software.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY phase, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
@@ -32,43 +32,39 @@
  * timers as in the Pomodoro Technique.
  *  https://en.wikipedia.org/wiki/Pomodoro_Technique
  *
- * The top right letter shows mode (f for focus or b for break).
+ * The top right letter shows phase (f for focus or b for break).
  * The bottom right shows how many focus sessions you've completed.
  * (You can reset the count with a long press of alarm)
  *
  * When you show up and it says 25 minutes, you can start it (alarm),
- *  switch to 5 minute (light) mode or leave (mode).
+ *  switch to 5 minute (light) phase or leave (mode).
  *
  * When it's running you can reset (alarm), or leave (mode).
  *
  * When it's done, we beep and go back to step 1, changing switching
- *  mode from focus to break (or break to focus)
+ *  phase from focus to break (or break to focus)
  */
 
 #include "movement.h"
 
 typedef enum {
-    tomato_ready,
-    tomato_run,
-    tomato_pause,
-} tomato_mode;
-
-typedef enum {
-tomato_break,
     tomato_focus,
-    // tomato_long_break,
-} tomato_kind;
+    tomato_break,
+    tomato_long_break,
+} tomato_phase;
 
 typedef struct {
     uint32_t target_ts;
     uint32_t now_ts;
     // how many seconds remainded after pause
     uint32_t remainder;
-    tomato_mode mode;
-    tomato_mode prev_mode;
-    tomato_kind kind;
-    uint8_t done_count;
-    bool visible;
+    tomato_phase phase;
+    // counts focused phases
+    uint8_t count;
+    bool is_visible;
+    bool is_started;
+    bool is_paused;
+    bool is_autorun;
 } tomato_state_t;
 
 void tomato_face_setup(movement_settings_t *settings, uint8_t watch_face_index, void ** context_ptr);

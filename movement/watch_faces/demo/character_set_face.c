@@ -43,8 +43,8 @@ void character_set_face_activate(movement_settings_t *settings, void *context) {
 static void _display(char * c) {
     char buf[11];
     sprintf(buf, "%c%c%c%c%c%c%c%c%c%c", *c, *c, *c, *c, *c, *c, *c, *c, *c, *c);
-    printf("%p\n", *c);
-    printf("%c\n", *c);
+    // printf("%p\n", *c);
+    // printf("%c\n", *c);
     watch_display_string(buf, 0);
 }
 
