@@ -31,7 +31,7 @@
 static const uint32_t _default_timer_values[] = {0x000200, 0x000500, 0x000A00, 0x001400, 0x002D02}; // default timers: 2 min, 5 min, 10 min, 20 min, 2 h 45 min
 
 // sound sequence for a single beeping sequence
-static const int8_t _sound_seq_beep[] = {BUZZER_NOTE_C8, 3, BUZZER_NOTE_REST, 3, -2, 2, BUZZER_NOTE_C8, 5, BUZZER_NOTE_REST, 25, 0};
+static const int8_t _sound_seq_alarm[] = {BUZZER_NOTE_C8, 3, BUZZER_NOTE_REST, 3, -2, 2, BUZZER_NOTE_C8, 5, BUZZER_NOTE_REST, 25, 0};
 static const int8_t _sound_seq_start[] = {BUZZER_NOTE_C8, 2, 0};
 
 static uint8_t _beeps_to_play;    // temporary counter for ring signals playing
@@ -43,7 +43,7 @@ static inline int32_t _get_tz_offset(movement_settings_t *settings) {
 static void _signal_callback() {
     if (_beeps_to_play) {
         _beeps_to_play--;
-        watch_buzzer_play_sequence((int8_t *)_sound_seq_beep, _signal_callback);
+        watch_buzzer_play_sequence((int8_t *)_sound_seq_alarm, _signal_callback);
     }
 }
 
@@ -304,7 +304,7 @@ bool timer_face_loop(movement_event_t event, movement_settings_t *settings, void
         case EVENT_BACKGROUND_TASK:
             // play the alarm
             _beeps_to_play = 4;
-            watch_buzzer_play_sequence((int8_t *)_sound_seq_beep, _signal_callback);
+            watch_buzzer_play_sequence((int8_t *)_sound_seq_alarm, _signal_callback);
             _reset(state);
             if (state->timers[state->current_timer].unit.repeat) _start(state, settings, false);
             break;

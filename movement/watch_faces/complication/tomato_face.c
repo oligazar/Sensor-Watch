@@ -27,10 +27,13 @@
 #include "tomato_face.h"
 #include "watch_utility.h"
 
-static uint8_t focus_min = 1; // 25;
-static uint8_t break_min = 1; // 5;
-static uint8_t long_break_min = 1; // 20;
-static uint8_t rounds = 2; // 4;
+static uint8_t focus_min = 25;
+static uint8_t break_min = 5;
+static uint8_t long_break_min = 20;
+static uint8_t rounds = 4;
+
+static const int8_t _sound_seq_alarm[] = {BUZZER_NOTE_C8, 3, BUZZER_NOTE_REST, 3, -2, 2, BUZZER_NOTE_C8, 5, BUZZER_NOTE_REST, 25, 0};
+static const int8_t _sound_seq_beep[] = {BUZZER_NOTE_C8, 2, 0};
 
 static inline int32_t get_tz_offset(movement_settings_t *settings) {
     return movement_timezone_offsets[settings->bit.time_zone] * 60;
@@ -47,7 +50,7 @@ static uint8_t get_length(tomato_state_t *state) {
     }
 }
 
-static void _tomato_start(tomato_state_t *state, movement_settings_t *settings) {
+static void _tomato_start(tomato_state_t *state, movement_settings_t *settings, bool with_beep) {
     watch_date_time now = watch_rtc_get_date_time();
     int8_t length = (int8_t) get_length(state);
 
@@ -60,6 +63,7 @@ static void _tomato_start(tomato_state_t *state, movement_settings_t *settings) 
     watch_date_time target_dt = watch_utility_date_time_from_unix_time(state->target_ts, get_tz_offset(settings));
     movement_schedule_background_task(target_dt);
     watch_set_indicator(WATCH_INDICATOR_BELL);
+    if (with_beep) watch_buzzer_play_sequence((int8_t *)_sound_seq_beep, NULL);
 }
 
 static void _tomato_pause(tomato_state_t *state) {
@@ -67,7 +71,8 @@ static void _tomato_pause(tomato_state_t *state) {
     state->remainder = state->target_ts - state->now_ts;
     // printf("pause, remainder: %d\n", state->remainder);
     movement_cancel_background_task();
-    // watch_clear_indicator(WATCH_INDICATOR_BELL);
+    watch_clear_indicator(WATCH_INDICATOR_BELL);
+    watch_buzzer_play_sequence((int8_t *)_sound_seq_beep, NULL);
 }
 
 static void _tomato_resume(tomato_state_t *state, movement_settings_t *settings) {
@@ -81,7 +86,8 @@ static void _tomato_resume(tomato_state_t *state, movement_settings_t *settings)
     // printf("now_ts: %d\n", state->now_ts);
     watch_date_time target_dt = watch_utility_date_time_from_unix_time(state->target_ts, get_tz_offset(settings));
     movement_schedule_background_task(target_dt);
-    // watch_set_indicator(WATCH_INDICATOR_BELL);
+    watch_set_indicator(WATCH_INDICATOR_BELL);
+    watch_buzzer_play_sequence((int8_t *)_sound_seq_beep, NULL);
 }
 
 static int _rounds(int num) {
@@ -110,6 +116,11 @@ static void _tomato_draw(tomato_state_t *state) {
             result = div(state->remainder, 60);
             min = result.quot;
             sec = result.rem;
+            uint8_t rest = state->now_ts%2;
+            if (state->is_paused && rest == 1)
+                watch_clear_indicator(WATCH_INDICATOR_BELL);
+            else
+                watch_set_indicator(WATCH_INDICATOR_BELL);
             // printf("remainder: %d\n", state->remainder);
             // printf("min: %d\n", min);
             // printf("sec: %d\n", sec);
@@ -131,12 +142,24 @@ static void _tomato_draw(tomato_state_t *state) {
 
     char title[3];
     // printf("now_ts: %d\n", state->now_ts);
-    uint8_t rest = state->now_ts%2;
+    // uint8_t rest = state->now_ts%2;
     // printf("rest: %d\n", rest);
-    if (state->is_paused && rest == 1) {
-        strcpy(title, "PA");
-    } else {
-        switch(state->phase) {
+    // if (state->is_paused && rest == 1) {
+    //     strcpy(title, "PA");
+    // } else {
+    //     switch(state->phase) {
+    //         case tomato_focus:
+    //             strcpy(title, "FO");
+    //             break;
+    //         case tomato_break:
+    //             strcpy(title, "BR");
+    //             break;
+    //         case tomato_long_break:
+    //             strcpy(title, "LB");
+    //             break;
+    //     }
+    // }
+    switch(state->phase) {
             case tomato_focus:
                 strcpy(title, "FO");
                 break;
@@ -147,7 +170,6 @@ static void _tomato_draw(tomato_state_t *state) {
                 strcpy(title, "LB");
                 break;
         }
-    }
     
     if (state->is_visible) {
         sprintf(buf, "%2s%2d%2d%02d%2d", title, state->count, min, sec, _rounds(state->count));
@@ -164,7 +186,8 @@ static void _tomato_reset_state(tomato_state_t *state) {
 }
 
 static void tomato_ring(tomato_state_t *state, movement_settings_t *settings) {
-    movement_play_signal();
+    // movement_play_signal();
+    watch_buzzer_play_sequence((int8_t *)_sound_seq_alarm, NULL);
     
     if (state->phase == tomato_focus) {
         if (_rounds(state->count) == rounds) {
@@ -179,7 +202,7 @@ static void tomato_ring(tomato_state_t *state, movement_settings_t *settings) {
     _tomato_reset_state(state);
 
     if (state->is_autorun) {
-         _tomato_start(state, settings);
+         _tomato_start(state, settings, false);
     } 
 }
 
@@ -280,7 +303,7 @@ bool tomato_face_loop(movement_event_t event, movement_settings_t *settings, voi
                     }
                 } 
             } else {
-                _tomato_start(state, settings);
+                _tomato_start(state, settings, true);
             }
             _tomato_draw(state);
             break;
